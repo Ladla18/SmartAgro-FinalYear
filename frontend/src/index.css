@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.bg_image_farmer{
+    background-image: url("indian-farmer-using-mobile-phone-while-sitting-agricultural-field_661495-76229.jpg");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+
+}
