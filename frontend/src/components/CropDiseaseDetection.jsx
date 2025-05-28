@@ -5,6 +5,8 @@ import { Link } from "react-router-dom";
 import {
   Upload,
   Camera,
+  CameraOff,
+  RotateCcw,
   Loader2,
   Volume2,
   Languages,
@@ -40,6 +42,8 @@ export const CropDiseaseDetection = () => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
   const [isCameraInitializing, setIsCameraInitializing] = useState(false);
+  const [facingMode, setFacingMode] = useState("user"); // Add state for camera facing mode
+  const [availableCameras, setAvailableCameras] = useState([]); // Add state for available cameras
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -98,10 +102,22 @@ export const CropDiseaseDetection = () => {
     }
   };
 
+  const getAvailableCameras = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(
+        (device) => device.kind === "videoinput"
+      );
+      setAvailableCameras(videoDevices);
+      console.log("Available cameras:", videoDevices);
+    } catch (error) {
+      console.error("Error getting cameras:", error);
+    }
+  };
+
   const startCamera = async () => {
     console.log("Starting camera initialization...");
 
-    // If camera is already active, stop it
     if (isCameraActive) {
       console.log("Camera already active, stopping...");
       stopCamera();
@@ -112,14 +128,17 @@ export const CropDiseaseDetection = () => {
       setIsCameraInitializing(true);
       setCameraError(null);
 
-      // Check if mediaDevices is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Camera API not supported in this browser");
       }
 
+      // Get available cameras when starting
+      await getAvailableCameras();
+
       console.log("Requesting camera access...");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
+          facingMode: facingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -409,6 +428,18 @@ export const CropDiseaseDetection = () => {
     `;
   };
 
+  const switchCamera = async () => {
+    console.log("Switching camera...");
+    const newFacingMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newFacingMode);
+
+    // Stop current camera
+    stopCamera();
+
+    // Start camera with new facing mode
+    await startCamera();
+  };
+
   return (
     <div className="container mx-auto p-4 max-w-6xl">
       <Card className="p-6 space-y-6">
@@ -527,10 +558,26 @@ export const CropDiseaseDetection = () => {
                           playsInline
                           muted
                           className="w-full h-full object-cover"
-                          style={{ transform: "scaleX(-1)" }}
+                          style={{
+                            transform:
+                              facingMode === "user" ? "scaleX(-1)" : "none",
+                          }}
                         />
                         {isCameraActive && streamRef.current && (
-                          <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                          <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
+                            {availableCameras.length > 1 && (
+                              <Button
+                                onClick={switchCamera}
+                                className="bg-white hover:bg-gray-100 text-gray-800 shadow-lg px-4 py-2 rounded-full"
+                                title={
+                                  facingMode === "user"
+                                    ? "Switch to back camera"
+                                    : "Switch to front camera"
+                                }
+                              >
+                                <RotateCcw className="w-5 h-5" />
+                              </Button>
+                            )}
                             <Button
                               onClick={captureImage}
                               className="bg-white hover:bg-gray-100 text-gray-800 shadow-lg px-6 py-2 rounded-full"
