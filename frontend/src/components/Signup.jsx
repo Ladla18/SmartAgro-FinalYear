@@ -50,15 +50,14 @@ export const Signup = () => {
           <div className="p-6 bg-gradient-to-br from-green-600 to-blue-600 text-white rounded-l-xl hidden md:block">
             <div className="h-full flex flex-col justify-between">
               <div className="space-y-6">
-                <h1 className="text-4xl font-bold">FarmConnect Pro</h1>
+                <h1 className="text-4xl font-bold">FarmConnect</h1>
                 <p className="text-lg opacity-90">
-                  Connect, Trade, and Grow with the Leading Agricultural
-                  Marketplace
+                  Helping farmers to get early information about the crop disease and connect with buyers and get the best price
                 </p>
                 {/* ... rest of hero content ... */}
               </div>
               <p className="text-sm opacity-75">
-                © 2024 FarmConnect Pro. All rights reserved.
+                © 2024 FarmConnect . Make in India . All rights reserved.
               </p>
             </div>
           </div>

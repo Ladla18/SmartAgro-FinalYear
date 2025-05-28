@@ -228,7 +228,7 @@ export const Header = ({ userType, onLogout }) => {
               )
             }
           >
-            FarmConnect Pro
+            FarmConnect
           </h1>
 
           {/* Desktop Navigation */}
