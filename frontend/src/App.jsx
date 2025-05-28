@@ -25,7 +25,7 @@ const FarmerLayout = ({ userType, onLogout, children }) => {
   return (
     <div className="min-h-screen bg_image_farmer">
       <Header userType={userType} onLogout={onLogout} />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-12">
         {children}
       </main>
       <Footer />
@@ -49,7 +49,7 @@ const DashboardLayout = ({ userType, onLogout }) => {
   return (
     <div className="min-h-screen bg_image_farmer">
       <Header userType={userType} onLogout={onLogout} />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-12">
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="bg-white/80 backdrop-blur-sm shadow-lg rounded-lg p-1">
             <TabsTrigger
