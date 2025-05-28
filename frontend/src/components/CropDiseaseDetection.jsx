@@ -37,17 +37,21 @@ export const CropDiseaseDetection = () => {
   const [validationError, setValidationError] = useState(null); // Added state for validation error message
   const [isSavingToHistory, setIsSavingToHistory] = useState(false); // Track saving to history
   const [savedToHistory, setSavedToHistory] = useState(false); // Track if current result is saved
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [isCameraInitializing, setIsCameraInitializing] = useState(false);
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const speechSynthRef = useRef(null);
 
   useEffect(() => {
+    console.log("Component mounted, initializing...");
     initializeModel();
+
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
+      console.log("Component unmounting, cleaning up...");
+      stopCamera();
       if (speechSynthRef.current) {
         window.speechSynthesis.cancel();
       }
@@ -95,16 +99,127 @@ export const CropDiseaseDetection = () => {
   };
 
   const startCamera = async () => {
+    console.log("Starting camera initialization...");
+
+    // If camera is already active, stop it
+    if (isCameraActive) {
+      console.log("Camera already active, stopping...");
+      stopCamera();
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setIsCameraInitializing(true);
+      setCameraError(null);
+
+      // Check if mediaDevices is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API not supported in this browser");
+      }
+
+      console.log("Requesting camera access...");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      console.log("Camera access granted, stream:", stream);
+      console.log("Video tracks:", stream.getVideoTracks());
+
+      if (!videoRef.current) {
+        throw new Error("Video element not found");
+      }
+
+      console.log("Setting up video element...");
       videoRef.current.srcObject = stream;
       streamRef.current = stream;
+
+      // Wait for video to be ready
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Video initialization timeout"));
+        }, 5000);
+
+        const checkVideo = () => {
+          if (videoRef.current.readyState >= 2) {
+            console.log("Video is ready, state:", videoRef.current.readyState);
+            clearTimeout(timeout);
+            resolve();
+          } else {
+            console.log(
+              "Video not ready yet, state:",
+              videoRef.current.readyState
+            );
+            setTimeout(checkVideo, 100);
+          }
+        };
+
+        checkVideo();
+      });
+
+      console.log("Video setup complete, activating camera...");
+      setIsCameraActive(true);
     } catch (error) {
-      toast.error("Failed to access camera");
+      console.error("Camera initialization failed:", error);
+      let errorMessage = "Failed to access camera. ";
+
+      if (error.name === "NotAllowedError") {
+        errorMessage =
+          "Camera access was denied. Please allow camera access in your browser settings.";
+      } else if (error.name === "NotFoundError") {
+        errorMessage = "No camera found on your device.";
+      } else if (error.name === "NotReadableError") {
+        errorMessage = "Camera is already in use by another application.";
+      } else if (error.message.includes("not supported")) {
+        errorMessage =
+          "Camera is not supported in your browser. Please try using Chrome, Firefox, or Edge.";
+      } else if (error.message.includes("timeout")) {
+        errorMessage = "Camera initialization timed out. Please try again.";
+      }
+
+      setCameraError(errorMessage);
+      toast.error(errorMessage);
+
+      // Clean up any partial initialization
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => {
+          console.log("Stopping track:", track.kind);
+          track.stop();
+        });
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    } finally {
+      setIsCameraInitializing(false);
+    }
+  };
+
+  const stopCamera = () => {
+    console.log("Stopping camera...");
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => {
+          console.log("Stopping track:", track.kind);
+          track.stop();
+        });
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    } catch (error) {
+      console.error("Error stopping camera:", error);
+    } finally {
+      setIsCameraActive(false);
     }
   };
 
   const captureImage = () => {
+    console.log("Capturing image...");
     const canvas = document.createElement("canvas");
     canvas.width = videoRef.current.videoWidth;
     canvas.height = videoRef.current.videoHeight;
@@ -117,15 +232,12 @@ export const CropDiseaseDetection = () => {
       setTranslatedResult(null);
       setMlPrediction(null);
       setAnalysisStep(null);
-      setIsKnownCrop(true); // Reset this with each new image
-      setValidationError(null); // Clear any previous validation errors
-    }, "image/jpeg");
+      setIsKnownCrop(true);
+      setValidationError(null);
 
-    // Stop the camera stream
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+      // Stop the camera after capture
+      stopCamera();
+    }, "image/jpeg");
   };
 
   const detectDisease = async () => {
@@ -302,7 +414,7 @@ export const CropDiseaseDetection = () => {
       <Card className="p-6 space-y-6">
         <div className="flex flex-col items-center space-y-2">
           <h2 className="text-2xl font-bold text-center">
-            Plant Disease Detection with ML & Gemini
+            Plant Disease Detection with ML
           </h2>
           {modelStatus && !isModelLoading && (
             <div className="flex items-center space-x-4 bg-slate-50 p-2 rounded-md text-sm text-slate-700">
@@ -344,18 +456,39 @@ export const CropDiseaseDetection = () => {
           <>
             <div className="flex justify-center space-x-4">
               <Button
-                onClick={() => fileInputRef.current.click()}
+                onClick={() => {
+                  if (isCameraActive) {
+                    stopCamera();
+                  }
+                  fileInputRef.current.click();
+                }}
                 className="flex items-center space-x-2"
+                disabled={isCameraInitializing}
               >
                 <Upload className="w-4 h-4" />
                 <span>Upload Image</span>
               </Button>
               <Button
                 onClick={startCamera}
-                className="flex items-center space-x-2"
+                className={`flex items-center space-x-2 ${
+                  isCameraActive
+                    ? "bg-red-100 hover:bg-red-200 text-red-700"
+                    : ""
+                }`}
+                disabled={isCameraInitializing}
               >
-                <Camera className="w-4 h-4" />
-                <span>Use Camera</span>
+                {isCameraInitializing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+                <span>
+                  {isCameraInitializing
+                    ? "Initializing..."
+                    : isCameraActive
+                    ? "Stop Camera"
+                    : "Use Camera"}
+                </span>
               </Button>
               <input
                 type="file"
@@ -368,67 +501,94 @@ export const CropDiseaseDetection = () => {
 
             <div className="flex flex-row space-x-6">
               <div className="flex-shrink-0 w-1/2">
-                {streamRef.current ? (
+                {isCameraActive || isCameraInitializing ? (
                   <div className="space-y-4">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
+                    {cameraError ? (
+                      <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                        <div className="flex items-center">
+                          <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                          <p className="text-red-700 text-sm">{cameraError}</p>
+                        </div>
+                        <Button
+                          onClick={() => {
+                            setCameraError(null);
+                            startCamera();
+                          }}
+                          className="mt-3 w-full bg-red-100 hover:bg-red-200 text-red-700"
+                        >
+                          Try Again
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover"
+                          style={{ transform: "scaleX(-1)" }}
+                        />
+                        {isCameraActive && streamRef.current && (
+                          <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                            <Button
+                              onClick={captureImage}
+                              className="bg-white hover:bg-gray-100 text-gray-800 shadow-lg px-6 py-2 rounded-full"
+                            >
+                              <Camera className="w-5 h-5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : preview ? (
+                  <div className="space-y-4">
+                    <img
+                      src={preview}
+                      alt="Selected crop"
                       className="w-full rounded-lg"
                     />
-                    <Button onClick={captureImage} className="w-full">
-                      Capture Image
-                    </Button>
-                  </div>
-                ) : (
-                  preview && (
-                    <div className="space-y-4">
-                      <img
-                        src={preview}
-                        alt="Selected crop"
-                        className="w-full rounded-lg"
-                      />
-                      {validationError && 1 > 2 ? (
-                        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
-                          <div className="flex items-center">
-                            <AlertCircle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0" />
-                            <p className="text-red-700 text-sm">
-                              {validationError}
-                            </p>
-                          </div>
-                          <Button
-                            onClick={() => fileInputRef.current.click()}
-                            className="mt-3 w-full bg-red-100 hover:bg-red-200 text-red-700"
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload a Crop Image Instead
-                          </Button>
+                    {validationError ? (
+                      <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+                        <div className="flex items-center">
+                          <AlertCircle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0" />
+                          <p className="text-red-700 text-sm">
+                            {validationError}
+                          </p>
                         </div>
-                      ) : (
                         <Button
-                          onClick={detectDisease}
-                          disabled={isLoading}
-                          className="w-full"
+                          onClick={() => fileInputRef.current.click()}
+                          className="mt-3 w-full bg-red-100 hover:bg-red-200 text-red-700"
                         >
-                          {isLoading ? (
-                            <div className="flex items-center justify-center space-x-2">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>
-                                {analysisStep === "ml"
-                                  ? "Analyzing image..."
-                                  : analysisStep === "gemini"
-                                  ? "Confirming with Gemini..."
-                                  : "Analyzing with Gemini..."}
-                              </span>
-                            </div>
-                          ) : (
-                            "Detect Disease"
-                          )}
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload a Crop Image Instead
                         </Button>
-                      )}
-                    </div>
-                  )
-                )}
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={detectDisease}
+                        disabled={isLoading}
+                        className="w-full"
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>
+                              {analysisStep === "ml"
+                                ? "Analyzing image..."
+                                : analysisStep === "gemini"
+                                ? "Confirming with Gemini..."
+                                : "Analyzing with Gemini..."}
+                            </span>
+                          </div>
+                        ) : (
+                          "Detect Disease"
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex-1">
@@ -461,7 +621,7 @@ export const CropDiseaseDetection = () => {
                                   <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12s4.48 10 10 10s10-4.48 10-10zM4 12c0-4.42 3.58-8 8-8s8 3.58 8 8s-3.58 8-8 8s-8-3.58-8-8zm8-3c-1.66 0-3 1.34-3 3s1.34 3 3 3s3-1.34 3-3s-1.34-3-3-3z"></path>
                                 </svg>
                               </div>
-                              <span className="text-xs mt-1">Gemini AI</span>
+                              <span className="text-xs mt-1">AI</span>
                             </div>
                           </div>
                         </div>
@@ -484,7 +644,7 @@ export const CropDiseaseDetection = () => {
                             >
                               <Brain className="w-4 h-4" />
                             </div>
-                            <span className="text-xs mt-1">Local ML</span>
+                            <span className="text-xs mt-1">ML</span>
                           </div>
                           <div
                             className={`flex-1 h-0.5 ${
@@ -515,7 +675,7 @@ export const CropDiseaseDetection = () => {
                                 <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12s4.48 10 10 10s10-4.48 10-10zM4 12c0-4.42 3.58-8 8-8s8 3.58 8 8s-3.58 8-8 8s-8-3.58-8-8zm8-3c-1.66 0-3 1.34-3 3s1.34 3 3 3s3-1.34 3-3s-1.34-3-3-3z"></path>
                               </svg>
                             </div>
-                            <span className="text-xs mt-1">Gemini</span>
+                            <span className="text-xs mt-1">AI</span>
                           </div>
                         </>
                       )}
