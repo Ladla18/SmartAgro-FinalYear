@@ -36,13 +36,20 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Database connection
+const mongoURI = process.env.MONGODB_URI;
+if (!mongoURI) {
+  console.error("FATAL ERROR: MONGODB_URI is not defined.");
+  process.exit(1); // Exit if MONGODB_URI is not set
+}
+
 mongoose
-  .connect("mongodb+srv://ecom:amanladla@cluster0.en3tt.mongodb.net/smart-agri")
+  .connect(mongoURI)
   .then(() => {
     console.log("Connected to database");
   })
   .catch((err) => {
     console.log("Connection failed", err);
+    process.exit(1); // Exit if connection fails
   });
 
 // Create HTTP server
@@ -101,7 +108,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: err.message || "Something went wrong!" });
 });
 
-// Start the server
-server.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+// Export the app for serverless environments
+module.exports = app;
+
+// Start the server only if not in a Lambda environment
+if (process.env.LAMBDA_TASK_ROOT === undefined) {
+  server.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
+}

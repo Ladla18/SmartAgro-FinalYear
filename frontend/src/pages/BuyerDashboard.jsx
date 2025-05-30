@@ -327,12 +327,7 @@ export const BuyerDashboard = () => {
                   title="Marketplace"
                   description="Browse all available products and make purchases."
                 />
-                <FeatureCard
-                  onFeatureSelect={handleFeatureSelect}
-                  icon={<TrendingUp className="h-12 w-12 text-purple-500" />}
-                  title="Price Analytics"
-                  description="View price trends and make informed purchasing decisions."
-                />
+              
                 <FeatureCard
                   onFeatureSelect={() => navigate("/buyer/orders")}
                   icon={<Package className="h-12 w-12 text-red-500" />}

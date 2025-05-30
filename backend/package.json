@@ -27,6 +27,8 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "@vendia/serverless-express": "^4.12.6",
+    "nodemon": "^3.0.1",
+    "serverless-offline": "^14.4.0"
   }
 }

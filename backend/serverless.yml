@@ -1,0 +1,40 @@
+service: smart-agro-backend
+
+provider:
+  name: aws
+  runtime: nodejs18.x # Make sure this matches your Node.js version
+  region: us-east-1 # Or your preferred AWS region
+  memorySize: 512 # Optional: Adjust memory as needed
+  timeout: 30 # Optional: Adjust timeout as needed
+  environment:
+    MONGODB_URI: ${env:MONGODB_URI, 'mongodb+srv://ecom:amanladla@cluster0.en3tt.mongodb.net/'} # Fallback for safety
+    JWT_SECRET: ${env:JWT_SECRET, 'amanladla'} # Example, add others as needed
+    # NODE_ENV: ${env:NODE_ENV, 'development'} # Optional: for environment-specific logic
+
+functions:
+  api:
+    handler: lambda.handler # Points to the handler function in lambda.js
+    events:
+      - httpApi: # Using HTTP API for better performance and lower cost
+          path: "/*"
+          method: any
+      - httpApi:
+          path: "/"
+          method: any
+
+package:
+  individually: true
+  exclude:
+    - .git/**
+    - node_modules/** # Let Serverless Framework handle dependency packaging
+    - uploads/** # Exclude uploads if they are not needed in the Lambda package
+    - ".env" # Do not package .env, use Lambda environment variables
+
+custom:
+  # Optional: If you use serverless-offline for local testing
+  # serverless-offline:
+  #   httpPort: 3001
+  #   lambdaPort: 3002
+
+plugins:
+  - serverless-offline # Optional: for local testing
